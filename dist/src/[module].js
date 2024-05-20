@@ -1116,9 +1116,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
     let userArgs;
     switch (parseOptions.from) {
       case undefined:
-      case "node":
+      case "txiki":
         this._scriptPath = argv[2];
         userArgs = argv.slice(3);
+        break;
+      case "node":
+        this._scriptPath = argv[1];
+        userArgs = argv.slice(2);
         break;
       case "electron":
         if (process.defaultApp) {
