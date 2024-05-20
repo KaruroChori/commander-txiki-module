@@ -1,5 +1,5 @@
 /**
- * Foreign Function Interface module.
+ * Command line helpers
  *
  * @module tjs:__MODULE__
  */
