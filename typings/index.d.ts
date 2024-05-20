@@ -1,3 +1,9 @@
+/**
+ * Foreign Function Interface module.
+ *
+ * @module tjs:__MODULE__
+ */
+declare module 'tjs:__MODULE__' {
 // Type definitions for commander
 // Original definitions by: Alan Agius <https://github.com/alan-agius4>, Marcelo Dezem <https://github.com/mdezem>, vvakame <https://github.com/vvakame>, Jules Randolph <https://github.com/sveinburne>
 
@@ -967,3 +973,5 @@ export function createOption(flags: string, description?: string): Option;
 export function createArgument(name: string, description?: string): Argument;
 
 export const program: Command;
+
+}
