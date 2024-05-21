@@ -19,6 +19,7 @@
     "url": "git+https://github.com/tj/commander.js.git"
   },
   "scripts": {
+    "bundle": "bun run ./scripts/bundle.ts",
     "check": "npm run check:type && npm run check:lint && npm run check:format",
     "check:format": "prettier --check .",
     "check:lint": "eslint .",
