@@ -94,27 +94,6 @@ class Argument {
 }
 
 // lib/adapter.js
-var syncfy = function(fn) {
-  const h = fn();
-  let ready = false;
-  let res = undefined;
-  h.then((x) => {
-    ready = true;
-    res = x;
-    console.log("YAY");
-  });
-  h.catch((x) => {
-    ready = true;
-    throw new Error(x);
-  });
-  h.finally((x) => {
-    console.log("YAY");
-  });
-  while (!ready) {
-  }
-  return res;
-};
-
 class EventEmitter {
   listeners = [];
   emit(eventName, ...data) {
@@ -151,15 +130,11 @@ var childProcess = {
   spawn: tjs.spawn
 };
 var fs = {
-  existsAsync: (filename) => {
-    const h = syncfy(() => tjs.open(filename));
-    syncfy(() => tjs.close(filename));
-    if (h !== undefined)
-      return true;
-    return false;
+  existsAsync: async (filename) => {
+    return await tjs.stat(filename) !== undefined;
   },
-  realpathSync: (filename) => {
-    return syncfy(() => tjs.realpath(filename));
+  realpathAsync: async (filename) => {
+    return tjs.realpath(filename);
   }
 };
 var process = {
@@ -710,8 +685,8 @@ class Command extends EventEmitter {
     this._showHelpAfterError = false;
     this._showSuggestionAfterError = true;
     this._outputConfiguration = {
-      writeOut: (str) => process.stdout.write(str),
-      writeErr: (str) => process.stderr.write(str),
+      writeOut: async (str) => await process.stdout.write(str),
+      writeErr: async (str) => await process.stderr.write(str),
       getOutHelpWidth: () => process.stdout.isTTY ? process.stdout.columns : undefined,
       getErrHelpWidth: () => process.stderr.isTTY ? process.stderr.columns : undefined,
       outputError: (str, write) => write(str)
@@ -1146,9 +1121,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
     this._name = this._name || "program";
     return userArgs;
   }
-  parse(argv, parseOptions) {
+  async parse(argv, parseOptions) {
     const userArgs = this._prepareUserArgs(argv, parseOptions);
-    this._parseCommand([], userArgs);
+    await this._parseCommand([], userArgs);
     return this;
   }
   async parseAsync(argv, parseOptions) {
@@ -1156,17 +1131,17 @@ Expecting one of '${allowedValues.join("', '")}'`);
     await this._parseCommand([], userArgs);
     return this;
   }
-  _executeSubCommand(subcommand, args) {
+  async _executeSubCommand(subcommand, args) {
     args = args.slice();
     let launchWithNode = false;
     const sourceExt = [".js", ".ts", ".tsx", ".mjs", ".cjs"];
-    function findFile(baseDir, baseName) {
+    async function findFile(baseDir, baseName) {
       const localBin = path.resolve(baseDir, baseName);
-      if (fs.existsSync(localBin))
+      if (await fs.existsAsync(localBin))
         return localBin;
       if (sourceExt.includes(path.extname(baseName)))
         return;
-      const foundExt = sourceExt.find((ext) => fs.existsSync(`${localBin}${ext}`));
+      const foundExt = sourceExt.find(async (ext) => await fs.existsASync(`${localBin}${ext}`));
       if (foundExt)
         return `${localBin}${foundExt}`;
       return;
@@ -1178,18 +1153,18 @@ Expecting one of '${allowedValues.join("', '")}'`);
     if (this._scriptPath) {
       let resolvedScriptPath;
       try {
-        resolvedScriptPath = fs.realpathSync(this._scriptPath);
+        resolvedScriptPath = await fs.realpathAsync(this._scriptPath);
       } catch (err) {
         resolvedScriptPath = this._scriptPath;
       }
       executableDir = path.resolve(path.dirname(resolvedScriptPath), executableDir);
     }
     if (executableDir) {
-      let localFile = findFile(executableDir, executableFile);
+      let localFile = await findFile(executableDir, executableFile);
       if (!localFile && !subcommand._executableFile && this._scriptPath) {
         const legacyName = path.basename(this._scriptPath, path.extname(this._scriptPath));
         if (legacyName !== this._name) {
-          localFile = findFile(executableDir, `${legacyName}-${subcommand._name}`);
+          localFile = await findFile(executableDir, `${legacyName}-${subcommand._name}`);
         }
       }
       executableFile = localFile || executableFile;
@@ -1249,30 +1224,30 @@ Expecting one of '${allowedValues.join("', '")}'`);
     });
     this.runningCommand = proc;
   }
-  _dispatchSubcommand(commandName, operands, unknown) {
+  async _dispatchSubcommand(commandName, operands, unknown) {
     const subCommand = this._findCommand(commandName);
     if (!subCommand)
-      this.help({ error: true });
+      await this.help({ error: true });
     let promiseChain;
     promiseChain = this._chainOrCallSubCommandHook(promiseChain, subCommand, "preSubcommand");
-    promiseChain = this._chainOrCall(promiseChain, () => {
+    promiseChain = this._chainOrCall(promiseChain, async () => {
       if (subCommand._executableHandler) {
-        this._executeSubCommand(subCommand, operands.concat(unknown));
+        await this._executeSubCommand(subCommand, operands.concat(unknown));
       } else {
-        return subCommand._parseCommand(operands, unknown);
+        return await subCommand._parseCommand(operands, unknown);
       }
     });
     return promiseChain;
   }
-  _dispatchHelpCommand(subcommandName) {
+  async _dispatchHelpCommand(subcommandName) {
     if (!subcommandName) {
-      this.help();
+      await this.help();
     }
     const subCommand = this._findCommand(subcommandName);
     if (subCommand && !subCommand._executableHandler) {
-      subCommand.help();
+      await subCommand.help();
     }
-    return this._dispatchSubcommand(subcommandName, [], [this._getHelpOption()?.long ?? this._getHelpOption()?.short ?? "--help"]);
+    return await this._dispatchSubcommand(subcommandName, [], [this._getHelpOption()?.long ?? this._getHelpOption()?.short ?? "--help"]);
   }
   _checkNumberOfArguments() {
     this.registeredArguments.forEach((arg, i) => {
@@ -1356,7 +1331,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
     }
     return result;
   }
-  _parseCommand(operands, unknown) {
+  async _parseCommand(operands, unknown) {
     const parsed = this.parseOptions(unknown);
     this._parseOptionsEnv();
     this._parseOptionsImplied();
@@ -1364,17 +1339,17 @@ Expecting one of '${allowedValues.join("', '")}'`);
     unknown = parsed.unknown;
     this.args = operands.concat(unknown);
     if (operands && this._findCommand(operands[0])) {
-      return this._dispatchSubcommand(operands[0], operands.slice(1), unknown);
+      return await this._dispatchSubcommand(operands[0], operands.slice(1), unknown);
     }
     if (this._getHelpCommand() && operands[0] === this._getHelpCommand().name()) {
-      return this._dispatchHelpCommand(operands[1]);
+      return await this._dispatchHelpCommand(operands[1]);
     }
     if (this._defaultCommandName) {
       this._outputHelpIfRequested(unknown);
-      return this._dispatchSubcommand(this._defaultCommandName, operands, unknown);
+      return await this._dispatchSubcommand(this._defaultCommandName, operands, unknown);
     }
     if (this.commands.length && this.args.length === 0 && !this._actionHandler && !this._defaultCommandName) {
-      this.help({ error: true });
+      await this.help({ error: true });
     }
     this._outputHelpIfRequested(parsed.unknown);
     this._checkForMissingMandatoryOptions();
@@ -1405,7 +1380,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
       this.parent.emit(commandEvent, operands, unknown);
     } else if (operands.length) {
       if (this._findCommand("*")) {
-        return this._dispatchSubcommand("*", operands, unknown);
+        return await this._dispatchSubcommand("*", operands, unknown);
       }
       if (this.listenerCount("command:*")) {
         this.emit("command:*", operands, unknown);
@@ -1417,7 +1392,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
       }
     } else if (this.commands.length) {
       checkForUnknownOptions();
-      this.help({ error: true });
+      await this.help({ error: true });
     } else {
       checkForUnknownOptions();
       this._processArguments();
@@ -1693,8 +1668,8 @@ Expecting one of '${allowedValues.join("', '")}'`);
     const versionOption = this.createOption(flags, description);
     this._versionOptionName = versionOption.attributeName();
     this._registerOption(versionOption);
-    this.on("option:" + versionOption.name(), () => {
-      this._outputConfiguration.writeOut(`${str}\n`);
+    this.on("option:" + versionOption.name(), async () => {
+      await this._outputConfiguration.writeOut(`${str}\n`);
       this._exit(0, "commander.version", str);
     });
     return this;
@@ -1777,15 +1752,15 @@ Expecting one of '${allowedValues.join("', '")}'`);
     const context = { error: !!contextOptions.error };
     let write;
     if (context.error) {
-      write = (arg) => this._outputConfiguration.writeErr(arg);
+      write = async (arg) => await this._outputConfiguration.writeErr(arg);
     } else {
-      write = (arg) => this._outputConfiguration.writeOut(arg);
+      write = async (arg) => await this._outputConfiguration.writeOut(arg);
     }
     context.write = contextOptions.write || write;
     context.command = this;
     return context;
   }
-  outputHelp(contextOptions) {
+  async outputHelp(contextOptions) {
     let deprecatedCallback;
     if (typeof contextOptions === "function") {
       deprecatedCallback = contextOptions;
@@ -1801,7 +1776,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         throw new Error("outputHelp callback must return a string or a Buffer");
       }
     }
-    context.write(helpInformation);
+    await context.write(helpInformation);
     if (this._getHelpOption()?.long) {
       this.emit(this._getHelpOption().long);
     }
@@ -1832,8 +1807,8 @@ Expecting one of '${allowedValues.join("', '")}'`);
     this._helpOption = option2;
     return this;
   }
-  help(contextOptions) {
-    this.outputHelp(contextOptions);
+  async help(contextOptions) {
+    await this.outputHelp(contextOptions);
     let exitCode = process.exitCode || 0;
     if (exitCode === 0 && contextOptions && typeof contextOptions !== "function" && contextOptions.error) {
       exitCode = 1;
@@ -1847,7 +1822,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
 Expecting one of '${allowedValues.join("', '")}'`);
     }
     const helpEvent = `${position}Help`;
-    this.on(helpEvent, (context) => {
+    this.on(helpEvent, async (context) => {
       let helpStr;
       if (typeof text === "function") {
         helpStr = text({ error: context.error, command: context.command });
@@ -1855,7 +1830,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         helpStr = text;
       }
       if (helpStr) {
-        context.write(`${helpStr}\n`);
+        await context.write(`${helpStr}\n`);
       }
     });
     return this;
