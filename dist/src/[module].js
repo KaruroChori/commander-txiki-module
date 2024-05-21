@@ -131,7 +131,12 @@ var childProcess = {
 };
 var fs = {
   existsAsync: async (filename) => {
-    return await tjs.stat(filename) !== undefined;
+    try {
+      const t = await tjs.stat(filename);
+    } catch (e) {
+      return false;
+    }
+    return true;
   },
   realpathAsync: async (filename) => {
     return tjs.realpath(filename);
