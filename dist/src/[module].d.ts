@@ -284,8 +284,8 @@ export interface AddHelpTextContext {
   command: Command;
 }
 export interface OutputConfiguration {
-  writeOut?(str: string): void;
-  writeErr?(str: string): void;
+  writeOut?(str: string): Promise<void>;
+  writeErr?(str: string): Promise<void>;
   getOutHelpWidth?(): number;
   getErrHelpWidth?(): number;
   outputError?(str: string, write: (str: string) => void): void;
@@ -743,7 +743,7 @@ export class Command {
    *
    * @returns `this` command for chaining
    */
-  parse(argv?: readonly string[], parseOptions?: ParseOptions): this;
+  parse(argv?: readonly string[], parseOptions?: ParseOptions): Promise<this>;
 
   /**
    * Parse `argv`, setting options and invoking commands when defined.
@@ -931,9 +931,9 @@ export class Command {
    *
    * Outputs built-in help, and custom text added using `.addHelpText()`.
    */
-  help(context?: HelpContext): never;
+  help(context?: HelpContext): Promise<never>;
   /** @deprecated since v7 */
-  help(cb?: (str: string) => string): never;
+  help(cb?: (str: string) => string): Promise<never>;
 
   /**
    * Add additional text to be displayed with the built-in help.
