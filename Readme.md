@@ -1,4 +1,10 @@
-Fork to support [txiki.js](https://github.com/saghul/txiki.js)
+> [!NOTE]  
+> This fork is a port of commander to embed it as a native txiki module. It will not work on different runtimes.  
+> However it is possible to reroute the `adapter.js` back to node if you want an async version of the original.  
+> [Instructions](https://github.com/KaruroChori/txiki-modules) on how to use it.  
+> The rest of the README is the same as for the original repo.
+
+---
 
 # Commander.js
 
