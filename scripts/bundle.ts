@@ -12,7 +12,12 @@ try {
         entrypoints: ['./index.js'],
         outdir: './dist/src/',
         external: ["tjs:*"],
-        target: "bun"
+        target: "bun",
+        minify: {
+        whitespace: true,
+        identifiers: false,
+        syntax: true,
+      },
     })
 }
 catch (e) { console.error(e) }
